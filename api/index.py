@@ -1,20 +1,23 @@
 import os
 from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# إعداد التوكن
+# الحصول على التوكن من متغيرات البيئة في Vercel
 TOKEN = os.environ.get("BOT_TOKEN")
-bot = Bot(token=TOKEN)
+
+# تأكيد وجود التوكن
+if not TOKEN:
+    raise ValueError("⚠️ BOT_TOKEN is not set in environment variables.")
 
 # إعداد Flask
 app = Flask(__name__)
 
-# إعداد Dispatcher
-dispatcher = Dispatcher(bot=bot, update_queue=None, workers=0, use_context=True)
+# إعداد تطبيق تيليجرام
+application = Application.builder().token(TOKEN).build()
 
 # أمر /start
-def start(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🚀 *مرحبًا!*\n\n"
         "أهلاً بك في القناة، نقدم:\n"
@@ -25,15 +28,23 @@ def start(update, context):
         "- متابعة يومية لتحقيق نتائج.\n\n"
         "*رابط القناة: [اضغط هنا للانضمام](https://t.me/Arsenic_Trader0)*"
     )
-    context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="Markdown")
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-# إضافة Handler
-dispatcher.add_handler(CommandHandler("start", start))
+# إضافة الأوامر إلى التطبيق
+application.add_handler(CommandHandler("start", start))
 
-@app.route("/", methods=["GET", "POST"])
-def webhook():
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), bot)
-        dispatcher.process_update(update)
-        return "OK"
+# Route للفحص
+@app.route("/", methods=["GET"])
+def index():
     return "🤖 Bot is running on Vercel!"
+
+# Route للـ Webhook
+@app.route("/", methods=["POST"])
+async def webhook():
+    data = request.get_json(force=True)
+    print("✅ Webhook received data:", data)  # لمراقبة وصول الطلبات في لوج Vercel
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
+    return "OK"
+
+# لا تقم بإضافة app.run لأن Vercel يدير التشغيل تلقائيًا
