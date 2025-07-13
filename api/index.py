@@ -1,28 +1,45 @@
-from flask import Flask, request
-from telegram import Bot, Update
-
 import os
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
+# إعداد التوكن من متغير البيئة في Vercel
+TOKEN = os.environ.get("BOT_TOKEN")
+
+# إعداد Flask
 app = Flask(__name__)
 
-TOKEN = os.environ.get("BOT_TOKEN")
-bot = Bot(token=TOKEN)
+# إعداد بوت تيليجرام
+application = Application.builder().token(TOKEN).build()
 
+# أمر /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "🚀 *مرحبًا!*\n\n"
+        "أهلاً بك في القناة، نقدم:\n"
+        "- محتوى تعليمي يساعدك على الاعتماد على نفسك في التداول.\n"
+        "- جلسات تحليل يومية وصفقات مدروسة.\n"
+        "- لايفات أسبوعية لشرح استراتيجيات.\n"
+        "- خطط إدارة رأس مال فردية.\n"
+        "- متابعة يومية لتحقيق نتائج.\n\n"
+        "*رابط القناة: [اضغط هنا للانضمام](https://t.me/Arsenic_Trader0)*"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+# إضافة أوامر البوت
+application.add_handler(CommandHandler("start", start))
+
+# Route لفحص التشغيل
 @app.route("/", methods=["GET"])
-def home():
-    return "Bot is running!"
+def index():
+    return "🤖 Bot is running on Vercel!"
 
+# Route لمعالجة Webhook
 @app.route("/", methods=["POST"])
-def webhook():
+async def webhook():
     data = request.get_json(force=True)
-    update = Update.de_json(data, bot)
-    chat_id = update.message.chat.id
-    message_text = update.message.text
-
-    if message_text == "/start":
-        bot.send_message(chat_id=chat_id, text="🚀 مرحبًا! البوت يعمل بنجاح على Vercel 🎉")
-
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
     return "OK"
 
-if __name__ == "__main__":
-    app.run()
+# لا تضع app.run هنا لأن Vercel يديره تلقائيًا
